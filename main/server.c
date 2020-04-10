@@ -5,31 +5,26 @@
 
 
 #include "header.h"
-#define ESP_WIFI_SSID      "testAPS"
-#define ESP_WIFI_PASS      "testAPS123123123"
-#define MAX_CONN       4
-#define PORT 80
-#define MACADDR	{0x16,	0x34,	0x56,	0x78,	0x90,	0xab}
 
 static const char *TAG = "wifi server";
-//
-//int transiv(int socket,char *date){
-//
-//	return 0;
-//}
-//
-//int received(int socket,char *messenge){
-//    inet_ntoa_r(((struct sockaddr_in *)&sourceAddr)->sin_addr.s_addr, addr_str, sizeof(addr_str) - 1);
-//    rx_buffer[len] = 0; // Null-terminate whatever we received and treat like a string
-//
-//    int err = send(sock, rx_buffer, len, 0);
-//
-//    if (err < 0) {
-//        ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
-//        break;
-//
-//	return 0;
-//}
+
+QueueHandle_t send_queue =NULL;
+
+int send_task(void){
+//	taskENTER_CRITICAL();
+	struct send_date date;
+	for(;;){
+		if(send_queue != 0){
+			xQueueReceive( send_queue, &date, portMAX_DELAY );
+			int err = send(date.socket, date.rx_buffer,date.len , 0);
+			if (err < 0) {
+				ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
+				return -1;
+			}
+		}
+		}
+
+}
 
 int connect_hub_loop(int listen_socket){
 
@@ -52,7 +47,7 @@ int connect_hub_loop(int listen_socket){
 
 
 int serv_socket_ini(int bind_port){
-
+/* initial wifi SAFT_AP*/
 	struct sockaddr_in destAddr;
 	int addr_family;
 	int ip_protocol;
@@ -98,38 +93,44 @@ int serv_socket_ini(int bind_port){
 
 	ESP_LOGI(TAG, "Socket listening");
 	ESP_LOGI(TAG, "Server init");
-//	struct sockaddr_in sourceAddr;
-//	uint addrLen = sizeof(sourceAddr);
-//	do{
-//		int sock = accept(listen_sock, (struct sockaddr *)&sourceAddr, &addrLen);
-//		if (sock < 0) {
-//			ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
-//			vTaskDelay(1000/portTICK_RATE_MS);
-//		}
-//	}while(sock < 0);
-//
-//	ESP_LOGI(TAG, "Socket accepted %i",sock);
-
 	return listen_sock; // @suppress("Return socket connected users")
+}
+
+void tcp_socket_server(void *pw){
+	char rx_buffer[128];
+	int err,len ;
+	struct send_date date;
+	date.rx_buffer =rx_buffer;
+	date.socket=(int *) pw;
+
+	for(;;){
+        date.len = recv(date.socket, date.rx_buffer, strlen(rx_buffer), 0);
+
+        xQueueSend(send_queue,( void * ) &date,100/portTICK_RATE_MS);
+	}
 }
 
 static void tcp_server_task(void *pvParameters)
 {
     char rx_buffer[128];
-    int len =127;
-    int listen_port = serv_socket_ini(PORT);
     int client_socket=-1;
-    rx_buffer[127]=0;
+    int err; // eror is memori_no
+    // Get socket bind server
+    int listen_port = serv_socket_ini(PORT);
+	err=xTaskCreate(send_task, "socket_send", 2048, NULL, 5, NULL);
+
+	if(err <0 ){
+	    		ESP_LOGE(TAG,"Memore false for  create socket_send");
+	    }
+
     for(;;){
     	client_socket=connect_hub_loop(listen_port);
-    	strcpy(rx_buffer, "hellow word");
-    	int err = send(client_socket, rx_buffer, len, 0);
-    	if (err < 0) {
-    		ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
-    		break;
+    	err=xTaskCreate(tcp_socket_server, "tcp_socket_server", 1024, ( void * )  client_socket, 6, NULL);
+    	if(err <0 ){
+    		ESP_LOGE(TAG,"Memore false for  create tcp_socket_server");
     	}
-    	vTaskDelay(100/portTICK_RATE_MS);
 
+    	vTaskDelay(100/portTICK_RATE_MS);
     }
     vTaskDelete(NULL);
 }
@@ -198,9 +199,11 @@ void wifi_init_softap()
 
 }
 
-int server_init(void){
+int server_init(int prior){
+	struct send_date test;
 	wifi_init_softap();
-	xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, &server_tcp_task_hdl);
+	send_queue = xQueueCreate( MAX_CONN*2, sizeof( test ) );
+	xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, prior, &server_tcp_task_hdl);
 	return 0;
 }
 
