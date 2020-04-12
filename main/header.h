@@ -7,6 +7,7 @@
 #include <string.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -34,9 +35,9 @@ TaskHandle_t	server_tcp_task_hdl ;
 TaskHandle_t	server_mpu_task_hdl ;
 
 struct date_i2c{
-	uint16_t x;
-	uint16_t y;
-	uint16_t z;
+	float x; //pitch
+	float y; //row
+	float z; //yaw
 }Date_ini;
 
 struct send_date{

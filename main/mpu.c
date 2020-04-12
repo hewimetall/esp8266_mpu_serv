@@ -1,6 +1,6 @@
 #include "header.h"
 
-//#define DEBUG_INFO 1
+#define DEBUG_INFO 1
 static const char *TAG = "mpu";
 
 #define I2C_MASTER_SCL_IO           13              /*!<  gpio number D7 for I2C master clock */
@@ -52,6 +52,9 @@ static const char *TAG = "mpu";
 #define GYRO_YOUT_L     0x46
 #define GYRO_ZOUT_H     0x47
 #define GYRO_ZOUT_L     0x48
+
+
+#define CONVERSIONG 3.9  // convert the raw readings to the g unit (1g = 9.8 m/s²) depends on sensor settings
 
 /* date pipline */
 QueueHandle_t Qdata_mpu =NULL;
@@ -183,16 +186,32 @@ static esp_err_t i2c_master_mpu6050_init(i2c_port_t i2c_num)
 esp_err_t mpu_get_accel_data(struct date_i2c *date){
 	int ret;
 	uint8_t data_int[6];
-
+	int16_t ax=0,ay=0,az=0;
+	float test;
 	memset(data_int, 0, 6);
 	ret = i2c_master_mpu6050_read(I2C_MASTER_NUM, ACCEL_XOUT_H, data_int, 6);
-	date->x=(int16_t)((data_int[0] << 8) | data_int[1]);
-	date->y=(int16_t)((data_int[2] << 8) | data_int[3]);
-	date->z=(int16_t)((data_int[4] << 8) | data_int[5]);
+	if (ret != ESP_OK) {
+		ESP_LOGW(TAG,"Error");
+		return ret;
+	}
+	ax=(int16_t)((data_int[0] << 8) | data_int[1]);
+	ay=(int16_t)((data_int[2] << 8) | data_int[3]);
+	az=(int16_t)((data_int[4] << 8) | data_int[5]);
+
+//	ax = (int32_t)(ax * CONVERSIONG);
+//	ay = (int32_t)(ay * CONVERSIONG);
+//	az = (int32_t)(az * CONVERSIONG);
+
+	date->x= atan (ax/(sqrt(ay*ay + az*az)+0.1))*(180 /M_PI);
+	date->y= atan (ay/sqrt(ax*ax + az*az))*(180 /M_PI);
+	date->z= atan (az/sqrt(ax*ax + az*az))*(180 /M_PI);
+
+	test=atan (az/sqrt(ax*ax + az*az))*(180 /M_PI);
 #ifdef DEBUG_INFO
 	ESP_LOGI(TAG,"sensor accelerometers_X %d\n",(int16_t)((data_int[0] << 8) | data_int[1]));
 	ESP_LOGI(TAG,"sensor accelerometers_Y %d\n",(int16_t)((data_int[2] << 8) | data_int[3]));
 	ESP_LOGI(TAG,"sensor accelerometers_Z %d\n",(int16_t)((data_int[4] << 8) | data_int[5]));
+	printf("%f\n",test);
 #endif
 	return ret;
 
@@ -201,12 +220,16 @@ esp_err_t mpu_get_accel_data(struct date_i2c *date){
 esp_err_t mpu_get_gyro_data(struct date_i2c *date){
 	int ret;
 	uint8_t data_int[6];
-
 	memset(data_int, 0, 6);
 	ret = i2c_master_mpu6050_read(I2C_MASTER_NUM, GYRO_XOUT_H, data_int, 6);
+	if (ret != ESP_OK) {
+		return ret;
+	}
+
 	date->x=(int16_t)((data_int[0] << 8) | data_int[1]);
 	date->y=(int16_t)((data_int[2] << 8) | data_int[3]);
 	date->z=(int16_t)((data_int[4] << 8) | data_int[5]);
+
 #ifdef DEBUG_INFO
 	ESP_LOGI(TAG,"sensor gyroscopes X:%d\n",(int16_t)((data_int[0] << 8) | data_int[1]));
 	ESP_LOGI(TAG,"sensor gyroscopes Y:%d\n",(int16_t)((data_int[2] << 8) | data_int[3]));
@@ -235,7 +258,7 @@ esp_err_t mpu_get_temp_data(uint16_t *temp){
 
 size_t json_serilizete(struct date_i2c *date,char *str){
 	size_t len=0;
-	len=sprintf (str,"{ \"name\": \"%-1s\", \"X\": %i, \"Y\": %i, \"Z\": %i }\n", "acel",date->x,date->y,date->z);
+	len=sprintf (str,"{ \"name\": \"%-1s\", \"X\": %.2f, \"Y\": %.2f, \"Z\": %.2f }\n", "acel",date->x,date->y,date->z);
 	str[len]='\0';
 	return len;
 }
@@ -272,7 +295,7 @@ void i2c_task_display(void *arg)
 		ret[0] = mpu_get_accel_data(&accel_D);
 		ret[1] = mpu_get_gyro_data(&gyro_D);
 
-		if ((ret[0]&ret[1]) == ESP_OK) {
+		if ((ret[0] && ret[1]) == ESP_OK) {
 			/* Send the entire structure to the queue created to hold 10 structures. */
 			xQueueSend( /* The handle of the queue. */
 					Qdata_mpu,
