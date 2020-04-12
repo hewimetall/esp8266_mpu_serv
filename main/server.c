@@ -13,10 +13,11 @@ QueueHandle_t send_queue =NULL;
 int send_task(void){
 //	taskENTER_CRITICAL();
 	struct send_date date;
+	int err;
 	for(;;){
 		if(send_queue != 0){
 			xQueueReceive( send_queue, &date, portMAX_DELAY );
-			int err = send(date.socket, date.rx_buffer,date.len , 0);
+			err = send(date.socket, date.rx_buffer,date.len , 0);
 			if (err < 0) {
 				ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
 				return -1;
@@ -97,31 +98,38 @@ int serv_socket_ini(int bind_port){
 }
 
 void tcp_socket_server(void *pw){
-	char rx_buffer[128];
 	int err,len ;
+	char hello[]="start";
 	struct send_date date;
-	date.rx_buffer =rx_buffer;
 	date.socket=(int *) pw;
+	date.len = 126;
+	ESP_LOGD(TAG,"Void command to start resive date for socket");
+
+	do{
+		len = recv(date.socket, date.rx_buffer, 126, 0);
+		date.rx_buffer[len]='\0';
+        ESP_LOGD(TAG,"ESP %s ",date.rx_buffer);
+        err = strstr (date.rx_buffer,hello);
+
+	}while(err == NULL);
+
+	ESP_LOGD(TAG,"Start resive date for socket");
 
 	for(;;){
-        date.len = recv(date.socket, date.rx_buffer, strlen(rx_buffer), 0);
-
-        xQueueSend(send_queue,( void * ) &date,100/portTICK_RATE_MS);
-	}
+        date.len=mpu_get_date(&date.rx_buffer);
+        if( xQueueSend(send_queue,( void * ) &date,100/portTICK_RATE_MS)!=pdPASS){
+        ESP_LOGE(TAG,"the send not succefull date.str =%s",date.rx_buffer);
+        }
+        ESP_LOGD(TAG,"the send succefull %s",date.rx_buffer);
+       }
 }
 
 static void tcp_server_task(void *pvParameters)
 {
     char rx_buffer[128];
-    int client_socket=-1;
-    int err; // eror is memori_no
+    int client_socket=-1,err;
     // Get socket bind server
     int listen_port = serv_socket_ini(PORT);
-	err=xTaskCreate(send_task, "socket_send", 2048, NULL, 5, NULL);
-
-	if(err <0 ){
-	    		ESP_LOGE(TAG,"Memore false for  create socket_send");
-	    }
 
     for(;;){
     	client_socket=connect_hub_loop(listen_port);
@@ -199,11 +207,25 @@ void wifi_init_softap()
 
 }
 
-int server_init(int prior){
+esp_err_t server_init(){
 	struct send_date test;
+
 	wifi_init_softap();
 	send_queue = xQueueCreate( MAX_CONN*2, sizeof( test ) );
-	xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, prior, &server_tcp_task_hdl);
-	return 0;
-}
 
+	return ESP_OK;
+}
+esp_err_t server_start(uint8_t prior,uint16_t mem_us){
+    int err; // eror is memori_no
+
+	xTaskCreate(tcp_server_task, "tcp_server", mem_us, NULL, prior, &server_tcp_task_hdl);
+
+	err=xTaskCreate(send_task, "socket_send", configMINIMAL_STACK_SIZE, NULL, prior-1, NULL);
+
+	if(err <0 ){
+	    		ESP_LOGE(TAG,"Memore false for  create socket_send");
+	    }
+
+
+	return ESP_OK;
+}

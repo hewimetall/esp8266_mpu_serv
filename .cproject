@@ -421,13 +421,13 @@
                 			
             </target>
             			
-            <target name="erase_otadata" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+            <target name="erase_flash" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
                 				
                 <buildCommand>make</buildCommand>
                 				
                 <buildArguments>-j4</buildArguments>
                 				
-                <buildTarget>erase_otadata</buildTarget>
+                <buildTarget>erase_flash</buildTarget>
                 				
                 <stopOnError>true</stopOnError>
                 				

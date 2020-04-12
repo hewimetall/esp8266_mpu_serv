@@ -2,8 +2,7 @@
  * header.h
  */
 
-#ifndef MAIN_HEADER_H_
-#define MAIN_HEADER_H_
+#pragma once
 
 #include <string.h>
 #include <string.h>
@@ -18,7 +17,6 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "esp_system.h"
 #include "esp_err.h"
 #include "nvs_flash.h"
 
@@ -32,29 +30,30 @@
 #include "lwip/sys.h"
 #include <lwip/netdb.h>
 
-TaskHandle_t	server_tcp_task_hdl;
-TaskHandle_t	server_mpu_task_hdl;
+TaskHandle_t	server_tcp_task_hdl ;
+TaskHandle_t	server_mpu_task_hdl ;
+
+struct date_i2c{
+	uint16_t x;
+	uint16_t y;
+	uint16_t z;
+}Date_ini;
 
 struct send_date{
 	int socket;
-	char *rx_buffer;
+	char rx_buffer[128];
 	size_t  len;
 };
-char *machine(void);
-char *create_monitor(char verbose_name,int is_date);
+
 /* MPU */
-//#define PIN_SDA 7
-//#define PIN_CLK 8
-void i2c_task_example(void *arg);
+esp_err_t mpu_init();
+esp_err_t mpu_start(uint8_t prior,uint16_t mem_us);
+size_t mpu_get_date(char *json_str);
 
-/* Main file */
-int server_init();
+/* WIFI file */
+esp_err_t server_init();
+esp_err_t server_start(uint8_t prior,uint16_t mem_us);
 
-struct data {
-	int16_t x;
-	int16_t y;
-	int16_t z;
-};
 
 /*       Wifi config           */
 #define ESP_WIFI_SSID      "testAPS"
@@ -63,4 +62,3 @@ struct data {
 #define PORT 80
 #define MACADDR	{0x16,	0x34,	0x56,	0x78,	0x90,	0xab}
 
-#endif /* MAIN_HEADER_H_ */
