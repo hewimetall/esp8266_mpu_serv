@@ -1,9 +1,6 @@
-# WiFi softAP example
+# WiFi softAP mpu050 
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
-
-
-## How to use example
+## How to use 
 
 ### Configure the project
 
@@ -12,8 +9,6 @@ idf.py menuconfig
 ```
 
 * Set serial port under Serial Flasher Options.
-
-* Set WiFi SSID and WiFi Password and Maximal STA connections under Example Configuration Options.
 
 ### Build and Flash
 
@@ -29,12 +24,14 @@ See the Getting Started Guide for full steps to configure and use ESP-IDF to bui
 
 ## Example Output
 
+* Wifi setting **SSID**:testAPS ,**PASSWD**:testAPS123123123;
+
 There is the console output for this example:
 
 ```
 I (917) phy: phy_version: 3960, 5211945, Jul 18 2018, 10:40:07, 0, 0
 I (917) wifi: mode : softAP (30:ae:a4:80:45:69)
-I (917) wifi softAP: wifi_init_softap finished.SSID:myssid password:mypassword
+I (917) wifi softAP: wifi_init_softap finished.SSID:testAPS password:testAPS123123123
 I (26457) wifi: n:1 0, o:1 0, ap:1 1, sta:255 255, prof:1
 I (26457) wifi: station: 70:ef:00:43:96:67 join, AID=1, bg, 20
 I (26467) wifi softAP: station:70:ef:00:43:96:67 join, AID=1
